@@ -54,4 +54,10 @@ $$
 $$
 ```
 
+For reliable rendering:
+
+- Use `$$ ... $$` for display math. `\[ ... \]` is not supported by this converter.
+- Put a blank line before and after display math blocks.
+- Put spaces around inline math when it touches Japanese or other non-space-separated text: `これは $R$ です`.
+
 Raw HTML inside Markdown is rendered as HTML. Use this only with Markdown files you trust.
