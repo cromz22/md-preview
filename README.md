@@ -44,4 +44,14 @@ input/post.markdown   -> output/post.html
 
 Rendering uses `marked` with GitHub-flavored Markdown enabled, including tables, task lists, fenced code blocks, links, images, and blockquotes.
 
+Math equations are rendered with KaTeX:
+
+```markdown
+Inline math: $E = mc^2$
+
+$$
+\int_0^1 x^2\,dx = \frac{1}{3}
+$$
+```
+
 Raw HTML inside Markdown is rendered as HTML. Use this only with Markdown files you trust.

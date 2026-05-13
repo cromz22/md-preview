@@ -1,6 +1,7 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { marked } from "marked";
+import markedKatex from "marked-katex-extension";
 
 export type ConvertOptions = {
   inputDir: string;
@@ -13,6 +14,12 @@ marked.use({
   gfm: true,
   breaks: false
 });
+
+marked.use(
+  markedKatex({
+    throwOnError: false
+  })
+);
 
 export function isMarkdownFile(filePath: string): boolean {
   return markdownExtensions.has(path.extname(filePath).toLowerCase());
@@ -54,6 +61,8 @@ export async function ensureDirectories(options: ConvertOptions): Promise<void> 
 
 async function ensureOutputAssets(outputDir: string): Promise<void> {
   await mkdir(outputDir, { recursive: true });
+  await cp(katexAssetPath("katex.min.css"), path.join(outputDir, "katex.min.css"));
+  await cp(katexAssetPath("fonts"), path.join(outputDir, "fonts"), { recursive: true });
   await writeFile(path.join(outputDir, "styles.css"), renderedCss, "utf8");
 }
 
@@ -94,6 +103,7 @@ function renderDocument(title: string, body: string): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(title)}</title>
+    <link rel="stylesheet" href="/katex.min.css">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -115,6 +125,10 @@ function escapeHtml(value: string): string {
 
 function isMissingPathError(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+function katexAssetPath(asset: string): string {
+  return path.join(process.cwd(), "node_modules", "katex", "dist", asset);
 }
 
 const renderedCss = `:root {
