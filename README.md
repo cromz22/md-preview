@@ -44,6 +44,16 @@ input/post.markdown   -> output/post.html
 
 Rendering uses `marked` with GitHub-flavored Markdown enabled, including tables, task lists, fenced code blocks, links, images, and blockquotes.
 
+Footnotes use GitHub-style syntax:
+
+```markdown
+Text with a footnote.[^1]
+
+[^1]: Footnote body.
+```
+
+Footnote definitions can be placed anywhere in the Markdown file. They render as a linked footnotes section at the bottom of the generated page.
+
 Math equations are rendered with KaTeX:
 
 ```markdown

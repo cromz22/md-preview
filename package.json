@@ -13,6 +13,7 @@
     "chokidar": "^3.6.0",
     "katex": "^0.16.45",
     "marked": "^12.0.2",
+    "marked-footnote": "^1.4.0",
     "marked-katex-extension": "^5.1.8"
   },
   "devDependencies": {

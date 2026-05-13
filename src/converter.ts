@@ -1,6 +1,7 @@
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { marked } from "marked";
+import markedFootnote from "marked-footnote";
 import markedKatex from "marked-katex-extension";
 
 export type ConvertOptions = {
@@ -20,6 +21,8 @@ marked.use(
     throwOnError: false
   })
 );
+
+marked.use(markedFootnote());
 
 export function isMarkdownFile(filePath: string): boolean {
   return markdownExtensions.has(path.extname(filePath).toLowerCase());
@@ -230,6 +233,43 @@ th {
 
 img {
   max-width: 100%;
+}
+
+.footnotes {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid #d8dee4;
+  color: #57606a;
+  font-size: 0.94em;
+}
+
+.footnotes ol {
+  padding-left: 24px;
+}
+
+.footnotes li {
+  margin: 8px 0;
+}
+
+[data-footnote-ref] {
+  font-size: 0.8em;
+  text-decoration: none;
+}
+
+[data-footnote-backref] {
+  margin-left: 4px;
+  text-decoration: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (max-width: 640px) {
