@@ -6,7 +6,7 @@
   "scripts": {
     "convert": "bun run src/cli.ts",
     "dev": "bun run src/dev.ts",
-    "serve": "vite --host 0.0.0.0 --open",
+    "serve": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && bun run convert"
   },
   "dependencies": {
