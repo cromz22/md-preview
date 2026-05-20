@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { marked } from "marked";
 import markedFootnote from "marked-footnote";
@@ -7,6 +7,20 @@ import markedKatex from "marked-katex-extension";
 export type ConvertOptions = {
   inputDir: string;
   outputDir: string;
+};
+
+export type MarkdownSymlink = {
+  linkPath: string;
+  targetPath: string;
+};
+
+export type MarkdownInputs = {
+  files: string[];
+  symlinks: MarkdownSymlink[];
+};
+
+export type FindMarkdownInputOptions = {
+  onInvalidSymlink?: (error: unknown) => void;
 };
 
 const markdownExtensions = new Set([".md", ".markdown"]);
@@ -34,9 +48,13 @@ export function outputPathFor(inputFile: string, options: ConvertOptions): strin
   return path.join(options.outputDir, parsed.dir, `${parsed.name}.html`);
 }
 
-export async function convertAll(options: ConvertOptions): Promise<number> {
+export async function convertAll(options: ConvertOptions, findOptions: FindMarkdownInputOptions = {}): Promise<number> {
+  const { files } = await findMarkdownInputs(options.inputDir, findOptions);
+  return convertFiles(files, options);
+}
+
+export async function convertFiles(files: string[], options: ConvertOptions): Promise<number> {
   await ensureOutputAssets(options.outputDir);
-  const files = await findMarkdownFiles(options.inputDir);
   await Promise.all(files.map((file) => convertFile(file, options)));
   return files.length;
 }
@@ -69,29 +87,91 @@ async function ensureOutputAssets(outputDir: string): Promise<void> {
   await writeFile(path.join(outputDir, "styles.css"), renderedCss, "utf8");
 }
 
-async function findMarkdownFiles(directory: string): Promise<string[]> {
+export async function findMarkdownSymlinks(
+  directory: string,
+  findOptions: FindMarkdownInputOptions = {}
+): Promise<MarkdownSymlink[]> {
+  const { symlinks } = await findMarkdownInputs(directory, findOptions);
+  return symlinks;
+}
+
+export async function getMarkdownSymlink(linkPath: string): Promise<MarkdownSymlink | undefined> {
+  if (!isMarkdownFile(linkPath)) {
+    return undefined;
+  }
+
+  let targetStats;
+  let targetPath;
+
+  try {
+    [targetStats, targetPath] = await Promise.all([stat(linkPath), realpath(linkPath)]);
+  } catch (error) {
+    throw new Error(`Invalid markdown symlink: ${linkPath} is broken or unreadable.`, { cause: error });
+  }
+
+  if (!targetStats.isFile()) {
+    throw new Error(`Invalid markdown symlink: ${linkPath} target is not a regular file.`);
+  }
+
+  const linkName = path.basename(linkPath);
+  const targetName = path.basename(targetPath);
+
+  if (linkName !== targetName) {
+    throw new Error(
+      `Invalid markdown symlink: ${linkPath} points to ${targetName}; symlink name must match target filename.`
+    );
+  }
+
+  return { linkPath, targetPath };
+}
+
+export async function findMarkdownInputs(
+  directory: string,
+  findOptions: FindMarkdownInputOptions = {}
+): Promise<MarkdownInputs> {
   let entries;
 
   try {
     entries = await readdir(directory, { withFileTypes: true });
   } catch (error) {
     if (isMissingPathError(error)) {
-      return [];
+      return { files: [], symlinks: [] };
     }
     throw error;
   }
 
-  const files = await Promise.all(
+  const inputs = await Promise.all(
     entries.map(async (entry) => {
       const entryPath = path.join(directory, entry.name);
       if (entry.isDirectory()) {
-        return findMarkdownFiles(entryPath);
+        return findMarkdownInputs(entryPath, findOptions);
       }
-      return entry.isFile() && isMarkdownFile(entryPath) ? [entryPath] : [];
+      if (entry.isSymbolicLink()) {
+        try {
+          const symlink = await getMarkdownSymlink(entryPath);
+          return symlink ? { files: [entryPath], symlinks: [symlink] } : { files: [], symlinks: [] };
+        } catch (error) {
+          if (!findOptions.onInvalidSymlink) {
+            throw error;
+          }
+
+          findOptions.onInvalidSymlink(error);
+          return { files: [], symlinks: [] };
+        }
+      }
+      return entry.isFile() && isMarkdownFile(entryPath)
+        ? { files: [entryPath], symlinks: [] }
+        : { files: [], symlinks: [] };
     })
   );
 
-  return files.flat();
+  return inputs.reduce(
+    (result, input) => ({
+      files: result.files.concat(input.files),
+      symlinks: result.symlinks.concat(input.symlinks)
+    }),
+    { files: [], symlinks: [] }
+  );
 }
 
 function extractTitle(markdown: string): string | undefined {
