@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { convertAll, findMarkdownSymlinks } from "../src/converter";
+import { convertAll, findMarkdownSymlinks, writeSiteIndex } from "../src/converter";
 
 const tempDirs: string[] = [];
 
@@ -48,6 +48,47 @@ describe("markdown symlink inputs", () => {
 
     expect(count).toBe(0);
     expect(symlinks).toEqual([]);
+  });
+});
+
+describe("site index", () => {
+  test("lists top-level and nested output html files", async () => {
+    const { outputDir } = await createFixture();
+    await mkdir(path.join(outputDir, "nested"), { recursive: true });
+    await Promise.all([
+      writeFile(path.join(outputDir, "alpha.html"), "<h1>Alpha</h1>", "utf8"),
+      writeFile(path.join(outputDir, "nested", "beta.html"), "<h1>Beta</h1>", "utf8"),
+      writeFile(path.join(outputDir, "styles.css"), "body {}", "utf8"),
+      writeFile(path.join(outputDir, "index.html"), "old index", "utf8")
+    ]);
+
+    await writeSiteIndex(outputDir);
+
+    const index = await readFile(path.join(outputDir, "index.html"), "utf8");
+    expect(index).toContain('<a href="alpha.html">alpha.html</a>');
+    expect(index).toContain('<a href="nested/beta.html">nested/beta.html</a>');
+    expect(index).not.toContain('<a href="index.html">index.html</a>');
+    expect(index).not.toContain('<a href="styles.css">styles.css</a>');
+  });
+
+  test("updates when output html files are added or removed", async () => {
+    const { outputDir } = await createFixture();
+    const firstFile = path.join(outputDir, "first.html");
+    const secondFile = path.join(outputDir, "second.html");
+    await writeFile(firstFile, "<h1>First</h1>", "utf8");
+
+    await writeSiteIndex(outputDir);
+    let index = await readFile(path.join(outputDir, "index.html"), "utf8");
+    expect(index).toContain("first.html");
+    expect(index).not.toContain("second.html");
+
+    await writeFile(secondFile, "<h1>Second</h1>", "utf8");
+    await rm(firstFile);
+    await writeSiteIndex(outputDir);
+
+    index = await readFile(path.join(outputDir, "index.html"), "utf8");
+    expect(index).not.toContain("first.html");
+    expect(index).toContain("second.html");
   });
 });
 

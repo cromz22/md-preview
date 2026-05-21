@@ -50,7 +50,9 @@ export function outputPathFor(inputFile: string, options: ConvertOptions): strin
 
 export async function convertAll(options: ConvertOptions, findOptions: FindMarkdownInputOptions = {}): Promise<number> {
   const { files } = await findMarkdownInputs(options.inputDir, findOptions);
-  return convertFiles(files, options);
+  const count = await convertFiles(files, options);
+  await writeSiteIndex(options.outputDir);
+  return count;
 }
 
 export async function convertFiles(files: string[], options: ConvertOptions): Promise<number> {
@@ -78,6 +80,74 @@ export async function removeOutputFor(inputFile: string, options: ConvertOptions
 export async function ensureDirectories(options: ConvertOptions): Promise<void> {
   await mkdir(options.inputDir, { recursive: true });
   await mkdir(options.outputDir, { recursive: true });
+}
+
+export async function writeSiteIndex(outputDir: string): Promise<string> {
+  await ensureOutputAssets(outputDir);
+  const files = await findOutputHtmlFiles(outputDir);
+  const body = renderSiteIndex(files);
+  const target = path.join(outputDir, "index.html");
+  const nextContent = renderDocument("Available Sites", body);
+  let currentContent;
+
+  try {
+    currentContent = await readFile(target, "utf8");
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
+  }
+
+  if (currentContent !== nextContent) {
+    await writeFile(target, nextContent, "utf8");
+  }
+
+  return target;
+}
+
+async function findOutputHtmlFiles(outputDir: string, directory = outputDir): Promise<string[]> {
+  let entries;
+
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw error;
+  }
+
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return findOutputHtmlFiles(outputDir, entryPath);
+      }
+
+      if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== ".html") {
+        return [];
+      }
+
+      const relativePath = toOutputRelativePath(outputDir, entryPath);
+      return relativePath === "index.html" ? [] : [relativePath];
+    })
+  );
+
+  return files.flat().sort((first, second) => first.localeCompare(second));
+}
+
+function renderSiteIndex(files: string[]): string {
+  const items = files
+    .map((file) => `<li><a href="${escapeHtml(file)}">${escapeHtml(file)}</a></li>`)
+    .join("\n");
+
+  return `<h1>Available Sites</h1>
+${items ? `<ul>\n${items}\n</ul>` : "<p>No sites available.</p>"}
+`;
+}
+
+function toOutputRelativePath(outputDir: string, filePath: string): string {
+  return path.relative(outputDir, filePath).split(path.sep).join("/");
 }
 
 async function ensureOutputAssets(outputDir: string): Promise<void> {

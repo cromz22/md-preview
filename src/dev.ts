@@ -10,6 +10,7 @@ import {
   getMarkdownSymlink,
   isMarkdownFile,
   removeOutputFor,
+  writeSiteIndex,
   type MarkdownSymlink,
   type ConvertOptions
 } from "./converter";
@@ -22,6 +23,7 @@ const options: ConvertOptions = {
 await ensureDirectories(options);
 const initialInputs = await findMarkdownInputs(options.inputDir, { onInvalidSymlink: logInvalidSymlink });
 const count = await convertFiles(initialInputs.files, options);
+await writeSiteIndex(options.outputDir);
 console.log(`Initial conversion complete: ${count} markdown file${count === 1 ? "" : "s"}.`);
 
 const targetWatcher = chokidar.watch([], {
@@ -48,6 +50,14 @@ const watcher = chokidar.watch(options.inputDir, {
   }
 });
 
+const outputWatcher = chokidar.watch(options.outputDir, {
+  ignoreInitial: true,
+  awaitWriteFinish: {
+    stabilityThreshold: 100,
+    pollInterval: 25
+  }
+});
+
 watcher
   .on("add", handleInputChange)
   .on("change", handleInputChange)
@@ -63,6 +73,7 @@ watcher
   });
 
 targetWatcher.on("add", handleTargetChange).on("change", handleTargetChange).on("unlink", handleTargetUnlink);
+outputWatcher.on("add", handleOutputChange).on("unlink", handleOutputChange);
 
 const vite = spawn("bun", ["run", "serve"], {
   stdio: "inherit",
@@ -178,9 +189,31 @@ function logInvalidSymlink(error: unknown): void {
   console.error(error);
 }
 
+async function handleOutputChange(filePath: string): Promise<void> {
+  if (!isOutputHtmlFile(filePath) || isOutputIndexFile(filePath)) {
+    return;
+  }
+
+  try {
+    await writeSiteIndex(options.outputDir);
+  } catch (error) {
+    console.error("Failed to update site index");
+    console.error(error);
+  }
+}
+
+function isOutputHtmlFile(filePath: string): boolean {
+  return path.extname(filePath).toLowerCase() === ".html";
+}
+
+function isOutputIndexFile(filePath: string): boolean {
+  return path.resolve(filePath) === path.join(options.outputDir, "index.html");
+}
+
 async function shutdown(): Promise<void> {
   await watcher.close();
   await targetWatcher.close();
+  await outputWatcher.close();
   vite.kill();
   process.exit(0);
 }
