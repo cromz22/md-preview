@@ -256,13 +256,27 @@ function renderDocument(title: string, body: string): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(title)}</title>
+    <script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
     <link rel="stylesheet" href="/katex.min.css">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
     <main class="markdown-body">
 ${body}
     </main>
+    <script>
+      document.querySelector(".theme-toggle").addEventListener("click", function () {
+        var root = document.documentElement;
+        var current = root.dataset.theme;
+        if (!current) {
+          current = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        var next = current === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        try { localStorage.setItem("theme", next); } catch (e) {}
+      });
+    </script>
   </body>
 </html>
 `;
@@ -285,15 +299,75 @@ function katexAssetPath(asset: string): string {
 }
 
 const renderedCss = `:root {
-  color: #1f2933;
-  background: #f6f8fa;
+  --bg: #f6f8fa;
+  --box-bg: #ffffff;
+  --text: #1f2933;
+  --muted: #57606a;
+  --border: #d8dee4;
+  --border-strong: #d0d7de;
+  --link: #0969da;
+  --code-bg: #eff3f6;
+  --pre-bg: #f6f8fa;
+  color-scheme: light;
+  color: var(--text);
+  background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.6;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0d1117;
+  --box-bg: #161b22;
+  --text: #c9d1d9;
+  --muted: #8b949e;
+  --border: #30363d;
+  --border-strong: #30363d;
+  --link: #58a6ff;
+  --code-bg: #21262d;
+  --pre-bg: #161b22;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117;
+    --box-bg: #161b22;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --border: #30363d;
+    --border-strong: #30363d;
+    --link: #58a6ff;
+    --code-bg: #21262d;
+    --pre-bg: #161b22;
+    color-scheme: dark;
+  }
 }
 
 body {
   margin: 0;
   padding: 32px 16px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--box-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.theme-toggle:hover {
+  border-color: var(--border-strong);
 }
 
 .markdown-body {
@@ -301,8 +375,8 @@ body {
   width: min(100%, 920px);
   margin: 0 auto;
   padding: 32px;
-  background: #ffffff;
-  border: 1px solid #d8dee4;
+  background: var(--box-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -327,18 +401,18 @@ h6 {
 h1,
 h2 {
   padding-bottom: 8px;
-  border-bottom: 1px solid #d8dee4;
+  border-bottom: 1px solid var(--border);
 }
 
 a {
-  color: #0969da;
+  color: var(--link);
 }
 
 blockquote {
   margin: 16px 0;
   padding: 0 16px;
-  color: #57606a;
-  border-left: 4px solid #d0d7de;
+  color: var(--muted);
+  border-left: 4px solid var(--border-strong);
 }
 
 pre,
@@ -349,14 +423,14 @@ code {
 
 code {
   padding: 0.2em 0.4em;
-  background: #eff3f6;
+  background: var(--code-bg);
   border-radius: 6px;
 }
 
 pre {
   overflow-x: auto;
   padding: 16px;
-  background: #f6f8fa;
+  background: var(--pre-bg);
   border-radius: 8px;
 }
 
@@ -374,11 +448,11 @@ table {
 th,
 td {
   padding: 8px 12px;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--border-strong);
 }
 
 th {
-  background: #f6f8fa;
+  background: var(--pre-bg);
 }
 
 img {
@@ -388,8 +462,8 @@ img {
 .footnotes {
   margin-top: 32px;
   padding-top: 16px;
-  border-top: 1px solid #d8dee4;
-  color: #57606a;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
   font-size: 0.94em;
 }
 
