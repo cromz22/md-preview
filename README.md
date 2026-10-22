@@ -6,6 +6,8 @@ Edit Markdown files in `input/` with Vim or any command-line editor. The app con
 
 ## Setup
 
+- Install [Bun](https://bun.sh/), and run:
+
 ```bash
 bun install
 ```
