@@ -24,6 +24,40 @@ export type FindMarkdownInputOptions = {
 };
 
 const markdownExtensions = new Set([".md", ".markdown"]);
+const audioExtensions = new Set([".mp3", ".wav", ".ogg", ".oga", ".m4a", ".aac", ".flac", ".opus", ".weba"]);
+
+export function isAudioFile(filePath: string): boolean {
+  return audioExtensions.has(path.extname(filePath).toLowerCase());
+}
+
+export async function copyAudioFile(inputFile: string, options: ConvertOptions): Promise<void> {
+  const target = path.join(options.outputDir, path.relative(options.inputDir, inputFile));
+  await mkdir(path.dirname(target), { recursive: true });
+  await cp(inputFile, target, { dereference: true });
+}
+
+export async function removeAudioFile(inputFile: string, options: ConvertOptions): Promise<void> {
+  await rm(path.join(options.outputDir, path.relative(options.inputDir, inputFile)), { force: true });
+}
+
+export async function copyAudioFiles(options: ConvertOptions, directory = options.inputDir): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (isMissingPathError(error)) return;
+    throw error;
+  }
+
+  await Promise.all(entries.map(async (entry) => {
+    const inputFile = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await copyAudioFiles(options, inputFile);
+    } else if (entry.isFile() && isAudioFile(inputFile)) {
+      await copyAudioFile(inputFile, options);
+    }
+  }));
+}
 
 marked.use({
   gfm: true,
@@ -50,6 +84,7 @@ export function outputPathFor(inputFile: string, options: ConvertOptions): strin
 
 export async function convertAll(options: ConvertOptions, findOptions: FindMarkdownInputOptions = {}): Promise<number> {
   const { files } = await findMarkdownInputs(options.inputDir, findOptions);
+  await copyAudioFiles(options);
   const count = await convertFiles(files, options);
   await writeSiteIndex(options.outputDir);
   return count;
@@ -57,12 +92,16 @@ export async function convertAll(options: ConvertOptions, findOptions: FindMarkd
 
 export async function convertFiles(files: string[], options: ConvertOptions): Promise<number> {
   await ensureOutputAssets(options.outputDir);
-  await Promise.all(files.map((file) => convertFile(file, options)));
+  await Promise.all(files.map((file) => renderFile(file, options)));
   return files.length;
 }
 
 export async function convertFile(inputFile: string, options: ConvertOptions): Promise<string> {
   await ensureOutputAssets(options.outputDir);
+  return renderFile(inputFile, options);
+}
+
+async function renderFile(inputFile: string, options: ConvertOptions): Promise<string> {
   const source = await readFile(inputFile, "utf8");
   const html = await marked.parse(source);
   const title = extractTitle(source) ?? path.basename(inputFile);
@@ -455,7 +494,8 @@ th {
   background: var(--pre-bg);
 }
 
-img {
+img,
+audio {
   max-width: 100%;
 }
 

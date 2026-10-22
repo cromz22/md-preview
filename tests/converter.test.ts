@@ -2,9 +2,41 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { convertAll, findMarkdownSymlinks, writeSiteIndex } from "../src/converter";
+import { convertAll, copyAudioFile, findMarkdownSymlinks, removeAudioFile, writeSiteIndex } from "../src/converter";
 
 const tempDirs: string[] = [];
+
+describe("embedded audio", () => {
+  test("preserves audio players and copies nested audio without changing bytes", async () => {
+    const options = await createFixture();
+    await mkdir(path.join(options.inputDir, "audio"));
+    await mkdir(path.join(options.inputDir, "notes"));
+    const bytes = Buffer.from([0, 255, 128, 1, 2]);
+    await writeFile(path.join(options.inputDir, "audio", "clip.MP3"), bytes);
+    await writeFile(path.join(options.inputDir, "notes", "listen.md"),
+      '# Listen\n\n<audio controls preload="metadata" src="../audio/clip.MP3"></audio>\n');
+
+    expect(await convertAll(options)).toBe(1);
+    expect(await readFile(path.join(options.outputDir, "audio", "clip.MP3"))).toEqual(bytes);
+    const html = await readFile(path.join(options.outputDir, "notes", "listen.html"), "utf8");
+    expect(html).toContain('<audio controls preload="metadata" src="../audio/clip.MP3"></audio>');
+    expect(await readFile(path.join(options.outputDir, "index.html"), "utf8")).not.toContain("clip.MP3");
+  });
+
+  test("copies replacements and removes deleted audio from output", async () => {
+    const options = await createFixture();
+    const input = path.join(options.inputDir, "clip.wav");
+    const output = path.join(options.outputDir, "clip.wav");
+    await writeFile(input, "first");
+    await copyAudioFile(input, options);
+    await writeFile(input, "replacement");
+    await copyAudioFile(input, options);
+    expect(await readFile(output, "utf8")).toBe("replacement");
+    await rm(input);
+    await removeAudioFile(input, options);
+    await expect(readFile(output)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
 
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })));

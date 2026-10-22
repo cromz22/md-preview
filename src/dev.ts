@@ -5,10 +5,14 @@ import chokidar from "chokidar";
 import {
   convertFile,
   convertFiles,
+  copyAudioFile,
+  copyAudioFiles,
   ensureDirectories,
   findMarkdownInputs,
   getMarkdownSymlink,
   isMarkdownFile,
+  isAudioFile,
+  removeAudioFile,
   removeOutputFor,
   writeSiteIndex,
   type MarkdownSymlink,
@@ -21,6 +25,7 @@ const options: ConvertOptions = {
 };
 
 await ensureDirectories(options);
+await copyAudioFiles(options);
 const initialInputs = await findMarkdownInputs(options.inputDir, { onInvalidSymlink: logInvalidSymlink });
 const count = await convertFiles(initialInputs.files, options);
 await writeSiteIndex(options.outputDir);
@@ -62,6 +67,14 @@ watcher
   .on("add", handleInputChange)
   .on("change", handleInputChange)
   .on("unlink", async (filePath) => {
+    if (isAudioFile(filePath)) {
+      try {
+        await removeAudioFile(filePath, options);
+      } catch (error) {
+        console.error(error);
+      }
+      return;
+    }
     if (!isMarkdownFile(filePath)) {
       return;
     }
@@ -84,6 +97,17 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
 async function handleInputChange(filePath: string): Promise<void> {
+  if (isAudioFile(filePath)) {
+    try {
+      if (!(await isSymbolicLink(filePath))) {
+        await copyAudioFile(filePath, options);
+      }
+    } catch (error) {
+      console.error(`Failed to copy audio ${filePath}`);
+      console.error(error);
+    }
+    return;
+  }
   if (!isMarkdownFile(filePath)) {
     return;
   }

@@ -71,3 +71,24 @@ For reliable rendering:
 - Put spaces around inline math when it touches Japanese or other non-space-separated text: `これは $R$ です`.
 
 Raw HTML inside Markdown is rendered as HTML. Use this only with Markdown files you trust.
+
+## Audio
+
+Place audio files under `input/` and embed an HTML player in your Markdown:
+
+```html
+<audio controls preload="metadata" src="audio/recording.mp3">
+  <a href="audio/recording.mp3">Download the recording</a>
+</audio>
+```
+
+For `input/notes.md`, this example uses `input/audio/recording.mp3`.
+Paths are relative to the Markdown file, so a file under `input/notes/` can use `../audio/recording.mp3`.
+Use a Markdown filename other than `index.md`, because `output/index.html` is the generated site listing.
+
+- Conversion copies audio files to matching paths under `output/`.
+- Development mode copies added or changed audio files and removes deleted files from the output.
+- Copied extensions: `.mp3`, `.wav`, `.ogg`, `.oga`, `.m4a`, `.aac`, `.flac`, `.opus`, and `.weba` (case-insensitive).
+- Audio symlinks are not copied; place the audio files themselves under `input/`.
+- Playback depends on the browser's support for the audio format and codec.
+- Remote audio can use an HTTPS URL in `src` without a local file.
